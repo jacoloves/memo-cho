@@ -1,0 +1,3 @@
+memodir: $HOME/tmp/memo-cho
+memptmp: $HOME/tmp/memo-cho/template
+edirot: nvim

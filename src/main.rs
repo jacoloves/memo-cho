@@ -1,4 +1,8 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+};
 
 use clap::{Arg, ArgAction, Command};
 use serde::{Deserialize, Serialize};
@@ -18,11 +22,35 @@ fn create_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
-    let mut config_path = dirs::home_dir().ok_or("Could not find home directory")?;
-    config_path.push(".config/memo-cho/config.yaml");
+    let config_dir = create_config_dir()?;
+    create_initial_config_file(config_dir.clone())?;
+    let mut config_path = config_dir.clone();
+    config_path.push("config.yaml");
     let config_str = fs::read_to_string(config_path)?;
     let config: Config = serde_yaml::from_str(&config_str)?;
     Ok(config)
+}
+
+fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let config_file_path = config_dir.join("config.yaml");
+
+    if config_file_path.exists() {
+        return Ok(());
+    }
+
+    let home_dir = dirs::home_dir().ok_or("Could not find home direcotry")?;
+    let home_dir_str = home_dir
+        .to_str()
+        .ok_or("Home direcotry path is not valid UTF-8")?;
+
+    let contents = format!(
+        "memodir: {home}\nmemotmp: {home}\neditor: nano\n",
+        home = home_dir_str
+    );
+
+    let mut file = File::create(config_file_path)?;
+    file.write_all(contents.as_bytes())?;
+    Ok(())
 }
 
 fn main() {
@@ -74,6 +102,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::TempDir;
+
     use super::*;
 
     #[test]
