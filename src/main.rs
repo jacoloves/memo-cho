@@ -2,15 +2,17 @@ use std::{
     fs::{self, File},
     io::Write,
     path::PathBuf,
+    process::Command,
 };
 
+use chrono::Local;
 use clap::{Arg, ArgAction, Command};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     memodir: String,
-    memotmp: String,
+    template: String,
     editor: String,
 }
 
@@ -44,7 +46,7 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
         .ok_or("Home direcotry path is not valid UTF-8")?;
 
     let contents = format!(
-        "memodir: {home}\nmemotmp: {home}\neditor: nano\n",
+        "memodir: {home}\ntemplate: {home}\neditor: nano\n",
         home = home_dir_str
     );
 
@@ -53,15 +55,38 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
+fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let filename = format!("{}-{}.md", date, title);
+    let memo_path = PathBuf::from(&config.memodir).join(filename);
+
+    if memo_path.exists() {
+        return Err("Memo already exists".into());
+    }
+
+    fs::copy(&config.template, &memo_path)?;
+
+    std::process::Command::new(&config.editor)
+        .arg(
+            memo_path
+                .to_str()
+                .ok_or("Path to string coversion failed")?,
+        )
+        .spawn()?
+        .wait()?;
+
+    Ok(memo_path)
+}
+
 fn main() {
     let config = load_config().expect("Failed to load config");
 
-    let app = Command::new("memo-cho")
+    let app = clap::Command::new("memo-cho")
         .version("0.1.0")
         .author("Shotaro Tanaka")
         .about("CLI Memo Tool")
         .subcommand(
-            Command::new("new").about("Create a new memo").arg(
+            clap::Command::new("new").about("Create a new memo").arg(
                 Arg::new("title")
                     .short('t')
                     .long("title")
@@ -71,33 +96,44 @@ fn main() {
             ),
         )
         .subcommand(
-            Command::new("edit").about("Edits an exisitng memo").arg(
-                Arg::new("filename")
-                    .help("The filename of the memo to edit")
-                    .required(true)
-                    .index(1),
-            ),
+            clap::Command::new("edit")
+                .about("Edits an exisitng memo")
+                .arg(
+                    Arg::new("filename")
+                        .help("The filename of the memo to edit")
+                        .required(true)
+                        .index(1),
+                ),
         )
         .subcommand(
-            Command::new("delete").about("Deletes a memo").arg(
+            clap::Command::new("delete").about("Deletes a memo").arg(
                 Arg::new("filename")
                     .help("The filename of the memo to delete")
                     .required(true)
                     .index(1),
             ),
         )
-        .subcommand(Command::new("list").about("Lists all emmos"))
+        .subcommand(clap::Command::new("list").about("Lists all emmos"))
         .subcommand(
-            Command::new("grep").about("Searches memos").arg(
+            clap::Command::new("grep").about("Searches memos").arg(
                 Arg::new("pattern")
                     .help("Ther search pattern")
                     .required(true)
                     .index(1),
             ),
         )
-        .subcommand(Command::new("serve").about("Serves memos as a web page"));
+        .subcommand(clap::Command::new("serve").about("Serves memos as a web page"));
 
-    let mathes = app.get_matches();
+    let matches = app.get_matches();
+
+    if let Some(matches) = matches.subcommand_matches("new") {
+        if let Some(title) = matches.get_one::<String>("title") {
+            match create_memo(&config, title) {
+                Ok(path) => println!("Memo created at {:?}", path),
+                Err(e) => eprintln!("Error creating memo: {}", e),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -111,7 +147,7 @@ mod tests {
         let loaded_config = load_config()?;
 
         assert_eq!(loaded_config.memodir, "$HOME/tmp/memo-cho");
-        assert_eq!(loaded_config.memotmp, "$HOME/tmp/memo-cho/template");
+        assert_eq!(loaded_config.template, "$HOME/tmp/memo-cho/template.md");
         assert_eq!(loaded_config.editor, "nvim");
 
         Ok(())
