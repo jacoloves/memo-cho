@@ -1,12 +1,11 @@
 use std::{
     fs::{self, File},
-    io::Write,
+    io::{self, Write},
     path::PathBuf,
-    process::Command,
+    process::Command as SysCommand,
 };
 
-use chrono::Local;
-use clap::{Arg, ArgAction, Command};
+use clap::Arg;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -46,7 +45,7 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
         .ok_or("Home direcotry path is not valid UTF-8")?;
 
     let contents = format!(
-        "memodir: {home}\ntemplate: {home}\neditor: nano\n",
+        "memodir: {home}\ntemplate: {home}/template.md\neditor: nano\n",
         home = home_dir_str
     );
 
@@ -64,9 +63,17 @@ fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::err
         return Err("Memo already exists".into());
     }
 
-    fs::copy(&config.template, &memo_path)?;
+    let template_path = PathBuf::from(&config.template);
+    if !template_path.exists() {
+        return Err("Template file does not exist".into());
+    }
 
-    std::process::Command::new(&config.editor)
+    println!("Creating memo at {:?}", &config.template);
+    println!("Creating memo at {:?}", &template_path);
+
+    fs::copy(&template_path, &memo_path)?;
+
+    SysCommand::new(&config.editor)
         .arg(
             memo_path
                 .to_str()
@@ -85,16 +92,8 @@ fn main() {
         .version("0.1.0")
         .author("Shotaro Tanaka")
         .about("CLI Memo Tool")
-        .subcommand(
-            clap::Command::new("new").about("Create a new memo").arg(
-                Arg::new("title")
-                    .short('t')
-                    .long("title")
-                    .help("Sets the title of the memo")
-                    .required(true)
-                    .action(ArgAction::Set),
-            ),
-        )
+        .subcommand(clap::Command::new("new").about("Create a new memo"))
+        .subcommand(clap::Command::new("n").about("Create a new memo (short alias"))
         .subcommand(
             clap::Command::new("edit")
                 .about("Edits an exisitng memo")
@@ -126,12 +125,17 @@ fn main() {
 
     let matches = app.get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("new") {
-        if let Some(title) = matches.get_one::<String>("title") {
-            match create_memo(&config, title) {
-                Ok(path) => println!("Memo created at {:?}", path),
-                Err(e) => eprintln!("Error creating memo: {}", e),
-            }
+    if matches.subcommand_matches("new").is_some() || matches.subcommand_matches("n").is_some() {
+        println!("Title:");
+        let mut title = String::new();
+        io::stdin()
+            .read_line(&mut title)
+            .expect("Failed to read line");
+        let title = title.trim();
+
+        match create_memo(&config, title) {
+            Ok(path) => println!("Memo created at {:?}", path),
+            Err(e) => eprintln!("Error createting memo: {}", e),
         }
     }
 }
