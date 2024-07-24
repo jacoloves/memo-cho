@@ -1,6 +1,7 @@
 use std::{
     fs::{self, File},
     io::{self, Write},
+    mem::replace,
     path::PathBuf,
     process::Command as SysCommand,
 };
@@ -17,7 +18,7 @@ struct Config {
 
 fn create_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let mut config_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    config_dir.push(".cofig/memo-cho");
+    config_dir.push(".config/memo-cho");
     fs::create_dir_all(&config_dir)?;
     Ok(config_dir)
 }
@@ -28,7 +29,12 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     let mut config_path = config_dir.clone();
     config_path.push("config.yaml");
     let config_str = fs::read_to_string(config_path)?;
-    let config: Config = serde_yaml::from_str(&config_str)?;
+    let mut config: Config = serde_yaml::from_str(&config_str)?;
+
+    config.memodir = replace_home_placeholder(&config.memodir);
+    config.template = replace_home_placeholder(&config.template);
+    config.editor = replace_home_placeholder(&config.editor);
+
     Ok(config)
 }
 
@@ -83,6 +89,14 @@ fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::err
         .wait()?;
 
     Ok(memo_path)
+}
+
+fn replace_home_placeholder(path: &str) -> String {
+    if let Some(home_dir) = dirs::home_dir() {
+        path.replace("$HOME", home_dir.to_str().unwrap())
+    } else {
+        path.to_string()
+    }
 }
 
 fn main() {
