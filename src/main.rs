@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::{self, Write},
-    mem::replace,
     path::PathBuf,
     process::Command as SysCommand,
 };
@@ -156,8 +155,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
-
     use super::*;
 
     #[test]
