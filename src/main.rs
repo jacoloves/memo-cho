@@ -13,6 +13,7 @@ struct Config {
     memodir: String,
     template: String,
     editor: String,
+    cmdselector: String,
 }
 
 fn create_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -50,7 +51,7 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
         .ok_or("Home direcotry path is not valid UTF-8")?;
 
     let contents = format!(
-        "memodir: {home}\ntemplate: {home}/template.md\neditor: nano\n",
+        "memodir: {home}\ntemplate: {home}/template.md\neditor: nano\ncmdselector: fzf\n",
         home = home_dir_str
     );
 
@@ -61,6 +62,7 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
 
 fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let file_date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let filename = format!("{}-{}.md", date, title);
     let memo_path = PathBuf::from(&config.memodir).join(filename);
 
@@ -73,10 +75,14 @@ fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::err
         return Err("Template file does not exist".into());
     }
 
-    println!("Creating memo at {:?}", &config.template);
-    println!("Creating memo at {:?}", &template_path);
+    let template_content = fs::read_to_string(&template_path)?;
 
-    fs::copy(&template_path, &memo_path)?;
+    let content = template_content
+        .replace("{{ title }}", title)
+        .replace("{{ date }}", &file_date);
+
+    let mut file = File::create(&memo_path)?;
+    file.write_all(content.as_bytes())?;
 
     SysCommand::new(&config.editor)
         .arg(
@@ -98,6 +104,24 @@ fn replace_home_placeholder(path: &str) -> String {
     }
 }
 
+fn edit_memo(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let memodir = PathBuf::from(&config.memodir);
+    if !memodir.exists() {
+        return Err("Memo direcotry does not exist".into());
+    }
+
+    let cmd = format!(
+        "ls {}/*.md | {} | xargs {}",
+        memodir.to_str().ok_or("Invalid memo directory path")?,
+        config.cmdselector,
+        config.editor
+    );
+
+    SysCommand::new("sh").arg("-c").arg(&cmd).spawn()?.wait()?;
+
+    Ok(())
+}
+
 fn main() {
     let config = load_config().expect("Failed to load config");
 
@@ -110,12 +134,7 @@ fn main() {
         .subcommand(
             clap::Command::new("edit")
                 .about("Edits an exisitng memo")
-                .arg(
-                    Arg::new("filename")
-                        .help("The filename of the memo to edit")
-                        .required(true)
-                        .index(1),
-                ),
+                .alias("e"),
         )
         .subcommand(
             clap::Command::new("delete").about("Deletes a memo").arg(
@@ -149,6 +168,13 @@ fn main() {
         match create_memo(&config, title) {
             Ok(path) => println!("Memo created at {:?}", path),
             Err(e) => eprintln!("Error createting memo: {}", e),
+        }
+    }
+
+    if matches.subcommand_matches("edit").is_some() || matches.subcommand_matches("e").is_some() {
+        match edit_memo(&config) {
+            Ok(()) => println!("Memo edited."),
+            Err(e) => eprintln!("Error editing memo: {}", e),
         }
     }
 }
