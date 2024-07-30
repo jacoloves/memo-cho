@@ -5,6 +5,7 @@ use std::{
     process::Command as SysCommand,
 };
 
+use chrono::format;
 use clap::Arg;
 use serde::{Deserialize, Serialize};
 
@@ -71,15 +72,18 @@ fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::err
     }
 
     let template_path = PathBuf::from(&config.template);
-    if !template_path.exists() {
-        return Err("Template file does not exist".into());
-    }
-
-    let template_content = fs::read_to_string(&template_path)?;
-
-    let content = template_content
-        .replace("{{ title }}", title)
-        .replace("{{ date }}", &file_date);
+    let content = if template_path.exists() {
+        let template_content = fs::read_to_string(&template_path)?;
+        if !template_content.is_empty() {
+            template_content
+                .replace("{{ title }}", title)
+                .replace("{{ date }}", &file_date)
+        } else {
+            "# ".to_string()
+        }
+    } else {
+        "# ".to_string()
+    };
 
     let mut file = File::create(&memo_path)?;
     file.write_all(content.as_bytes())?;
