@@ -65,7 +65,10 @@ fn create_initial_config_file(config_dir: PathBuf) -> Result<(), Box<dyn std::er
 fn create_memo(config: &Config, title: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let file_date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let filename = format!("{}-{}.md", date, title);
+    let sanitiezed_title = title
+        .replace(|c: char| !c.is_alphabetic() && c != ' ', "-")
+        .replace(' ', "-");
+    let filename = format!("{}-{}.md", date, sanitiezed_title);
     let memo_path = PathBuf::from(&config.memodir).join(filename);
 
     if memo_path.exists() {
@@ -130,7 +133,7 @@ fn edit_memo(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
 fn main() {
     let config = load_config().expect("Failed to load config");
 
-    // println!("{:?}", config);
+    println!("{:?}", config);
 
     let app = clap::Command::new("memo-cho")
         .version("0.1.0")
