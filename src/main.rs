@@ -35,6 +35,7 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     config.memodir = replace_home_placeholder(&config.memodir);
     config.template = replace_home_placeholder(&config.template);
     config.editor = replace_home_placeholder(&config.editor);
+    config.cmdselector = replace_home_placeholder(&config.cmdselector);
 
     Ok(config)
 }
@@ -129,6 +130,8 @@ fn edit_memo(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
 fn main() {
     let config = load_config().expect("Failed to load config");
 
+    // println!("{:?}", config);
+
     let app = clap::Command::new("memo-cho")
         .version("0.1.0")
         .author("Shotaro Tanaka")
@@ -148,7 +151,7 @@ fn main() {
                     .index(1),
             ),
         )
-        .subcommand(clap::Command::new("list").about("Lists all emmos"))
+        .subcommand(clap::Command::new("list").about("Lists all memos"))
         .subcommand(
             clap::Command::new("grep").about("Searches memos").arg(
                 Arg::new("pattern")
