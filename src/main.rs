@@ -5,7 +5,6 @@ use std::{
     process::Command as SysCommand,
 };
 
-use chrono::format;
 use clap::Arg;
 use serde::{Deserialize, Serialize};
 
@@ -130,6 +129,31 @@ fn edit_memo(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn create_daily_note(config: &Config) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let filename = format!("{}.md", date);
+    let memo_path = PathBuf::from(&config.memodir).join(filename);
+
+    if memo_path.exists() {
+        println!("Daily note already exists. Opening exisitng note...");
+    } else {
+        let mut file = File::create(&memo_path)?;
+        let content = format!("# Daily Note - {}\n\n", date);
+        file.write_all(content.as_bytes())?;
+    }
+
+    SysCommand::new(&config.editor)
+        .arg(
+            memo_path
+                .to_str()
+                .ok_or("Path to string conversion failed")?,
+        )
+        .spawn()?
+        .wait()?;
+
+    Ok(memo_path)
+}
+
 fn main() {
     let config = load_config().expect("Failed to load config");
 
@@ -137,7 +161,7 @@ fn main() {
 
     let app = clap::Command::new("memo-cho")
         .version("0.1.0")
-        .author("Shotaro Tanaka")
+        .author("Shoonng")
         .about("CLI Memo Tool")
         .subcommand(clap::Command::new("new").about("Create a new memo"))
         .subcommand(clap::Command::new("n").about("Create a new memo (short alias"))
@@ -163,7 +187,12 @@ fn main() {
                     .index(1),
             ),
         )
-        .subcommand(clap::Command::new("serve").about("Serves memos as a web page"));
+        .subcommand(clap::Command::new("serve").about("Serves memos as a web page"))
+        .subcommand(
+            clap::Command::new("daily-note")
+                .about("Creates a new daily note")
+                .alias("dn"),
+        );
 
     let matches = app.get_matches();
 
@@ -181,10 +210,17 @@ fn main() {
         }
     }
 
-    if matches.subcommand_matches("edit").is_some() || matches.subcommand_matches("e").is_some() {
+    if matches.subcommand_matches("edit").is_some() {
         match edit_memo(&config) {
             Ok(()) => println!("Memo edited."),
             Err(e) => eprintln!("Error editing memo: {}", e),
+        }
+    }
+
+    if matches.subcommand_matches("daily-note").is_some() {
+        match create_daily_note(&config) {
+            Ok(path) => println!("Daily note created at {:?}", path),
+            Err(e) => eprintln!("Error creating daily note: {}", e),
         }
     }
 }
