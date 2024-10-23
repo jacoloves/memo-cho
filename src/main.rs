@@ -154,6 +154,27 @@ fn create_daily_note(config: &Config) -> Result<PathBuf, Box<dyn std::error::Err
     Ok(memo_path)
 }
 
+fn delete_memo(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let memodir = PathBuf::from(&config.memodir);
+    if !memodir.exists() {
+        return Err("Memo directory does not exist".into());
+    }
+
+    let cmd = format!(
+        "ls {}/*.md | {} | xargs rm",
+        memodir.to_str().ok_or("Invalid memo directory path")?,
+        config.cmdselector
+    );
+
+    let status = SysCommand::new("sh").arg("-c").arg(&cmd).status()?;
+
+    if !status.success() {
+        return Err("Failed to delete memo".into());
+    }
+
+    Ok(())
+}
+
 fn main() {
     let config = load_config().expect("Failed to load config");
 
@@ -171,12 +192,9 @@ fn main() {
                 .alias("e"),
         )
         .subcommand(
-            clap::Command::new("delete").about("Deletes a memo").arg(
-                Arg::new("filename")
-                    .help("The filename of the memo to delete")
-                    .required(true)
-                    .index(1),
-            ),
+            clap::Command::new("delete")
+                .about("Deletes a memo")
+                .alias("d"),
         )
         .subcommand(clap::Command::new("list").about("Lists all memos"))
         .subcommand(
@@ -221,6 +239,13 @@ fn main() {
         match create_daily_note(&config) {
             Ok(path) => println!("Daily note created at {:?}", path),
             Err(e) => eprintln!("Error creating daily note: {}", e),
+        }
+    }
+
+    if matches.subcommand_matches("delete").is_some() {
+        match delete_memo(&config) {
+            Ok(()) => println!("Memo deleted."),
+            Err(e) => eprintln!("Error deleting memo: {}", e),
         }
     }
 }
