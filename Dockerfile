@@ -11,4 +11,4 @@ RUN apt-get update && apt-get install -y nano vim
 
 COPY --from=builder /usr/local/cargo/bin/memo-cho /usr/local/bin/memo-cho
 
-ENTRYPOINT [ "emmo-cho" ]
+ENTRYPOINT [ "memo-cho" ]
