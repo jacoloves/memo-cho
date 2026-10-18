@@ -1,4 +1,4 @@
 memodir: $HOME/tmp/memo-cho
 template: $HOME/tmp/memo-cho/template/template.md
-edirot: nvim
+editor: nvim
 cmdselector: "fzf"
